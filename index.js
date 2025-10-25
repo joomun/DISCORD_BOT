@@ -1,6 +1,8 @@
-require('dotenv').config();
+require('dotenv').config(); // load .env
 
 const { Client, GatewayIntentBits } = require('discord.js');
+
+// Create client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -9,16 +11,12 @@ const client = new Client({
   ]
 });
 
-client.login(process.env.DISCORD_TOKEN);
+// Read token from environment variable
+const TOKEN = process.env.DISCORD_TOKEN;
 
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}`);
+// Login
+client.login(TOKEN).then(() => {
+  console.log('Bot logged in!');
+}).catch(err => {
+  console.error('Login failed:', err);
 });
-
-client.on('messageCreate', (message) => {
-  if (message.content === '!ping') {
-    message.reply('🏓 Pong!');
-  }
-});
-
-client.login(TOKEN);
