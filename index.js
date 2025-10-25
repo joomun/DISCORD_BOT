@@ -20,3 +20,11 @@ client.login(TOKEN).then(() => {
 }).catch(err => {
   console.error('Login failed:', err);
 });
+
+client.on('messageCreate', (message) => {
+  if (message.content === '!ping') {
+    message.reply('🏓 Pong!');
+  }
+});
+
+client.login(TOKEN);
