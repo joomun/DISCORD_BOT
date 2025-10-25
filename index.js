@@ -122,6 +122,32 @@ client.on('messageCreate', (message) => {
   if (message.content === '!ping') {
     message.reply('🏓 Pong!');
   }
+
+  // help command: explain bot capabilities (terminal-like theme)
+  if (message.content === '!help') {
+    const help = [
+      '```',
+      '┌───────────────────────────────────────────────────────',
+      '│  Discord Audit Notifier',
+      '├───────────────────────────────────────────────────────',
+      '│  Commands:',
+      '│    !ping   — test the bot',
+      '│    !help   — show this message',
+      '│',
+      '│  What I do:',
+      '│    Notify the channel named "bot-warning" when important',
+      '│    audit-log events occur (roles, channels, webhooks, bans,',
+      '│    guild updates).',
+      '│',
+      '│  Notes:',
+      '│    • Bot needs "View Audit Log" and "Send Messages" permissions.',
+      '│    • Ensure a text channel named "bot-warning" exists.',
+      '└───────────────────────────────────────────────────────',
+      '```'
+    ].join('\n');
+
+    message.reply(help);
+  }
 });
 
 // Login (single call)
