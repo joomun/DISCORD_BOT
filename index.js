@@ -341,37 +341,34 @@ client.on('messageCreate', async (message) => {
   }
 
   if (message.content === '!help') {
-    const help = [
-      '```',
-      '┌──────────────────────────────────────────────────────────────────────────│',
-      '│  Discord Audit Notifier                                                  │', 
-      '├──────────────────────────────────────────────────────────────────────────│',
-      '│  Commands:                                                               │',                       
-      '│    !ping         — test the bot                                          │',
-      '│    !help         — show this message                                     │',
-      '│    !rate-limit   — show OpenRouter API rate limit information            │',
-      '│ ─────────────────────────────────────────────────────────────────────────│',
-      '│  What I do:                                                              │',
-      '│    Notify the channel named "bot-warning" when important                 │',
-      '│    audit-log events occur (roles, channels, webhooks, bans,              │',
-      '│    guild updates).                                                       │',
-      '│                                                                          │',
-      '│  Chatbot Shortcuts:                                                      │',
-      '│    a: <message> — openai/gpt-oss-20b:free                                │',
-      '│    b: <message> — moonshotai/kimi-k2:free                                │',
-      '│    c: <message> — deepseek/deepseek-r1-0528-qwen3-8b:free                │',
-      '│    d: <message> — google/gemma-3-4b-it:free                              │',
-      '│                                                                          │',
-      '│  Notes:                                                                  │',
-      '│    • Bot needs "View Audit Log" and "Send Messages" permissions.         │',
-      '│    • Ensure a text channel named "bot-warning" exists.                   │',
-      '│    • Ensure a text channel named "bot-logs" exists for logging.          │',
-      '│    • Set HTTP_REFERER and X_TITLE in .env for ranking (optional).        │',
-      '└──────────────────────────────────────────────────────────────────────────',
-      '```'
-    ].join('\n');
+    const embed = new EmbedBuilder()
+      .setColor(0x00ccff) // Blue color
+      .setTitle('Discord Audit Notifier - Help')
+      .setDescription('Here are the available commands and features:')
+      .addFields(
+        { name: 'Commands', value: '`!ping` - Test the bot\n`!help` - Show this help message\n`!rate-limit` - Show OpenRouter API rate limit information' },
+        { name: 'Chatbot Shortcuts', value: [
+            '`a: <message>` - openai/gpt-oss-20b:free',
+            '`b: <message>` - moonshotai/kimi-k2:free',
+            '`c: <message>` - deepseek/deepseek-r1-0528-qwen3-8b:free',
+            '`d: <message>` - google/gemma-3-4b-it:free'
+          ].join('\n') },
+        { name: 'Features', value: [
+            '• Notifies the "bot-warning" channel for important audit-log events (roles, channels, webhooks, bans, guild updates).',
+            '• Logs API interactions in the "bot-logs" channel.',
+            '• Supports multiple chatbot models via shortcuts.'
+          ].join('\n') },
+        { name: 'Notes', value: [
+            '• Bot needs "View Audit Log" and "Send Messages" permissions.',
+            '• Ensure a text channel named "bot-warning" exists.',
+            '• Ensure a text channel named "bot-logs" exists for logging.',
+            '• Set `HTTP_REFERER` and `X_TITLE` in `.env` for ranking (optional).'
+          ].join('\n') }
+      )
+      .setFooter({ text: 'Discord Audit Notifier', iconURL: client.user.displayAvatarURL() })
+      .setTimestamp();
 
-    message.reply(help);
+    await message.reply({ embeds: [embed] });
     return;
   }
 
