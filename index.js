@@ -134,7 +134,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
 async function handleChatbot(message) {
   try {
     const completion = await openRouter.chat.send({
-      model: 'deepseek/deepseek-chat-v3.1:free', // Updated: using official OpenRouter SDK
+      model: 'deepseek/deepseek-r1:free', // Updated: Use a supported model
       messages: [{ role: 'user', content: message.content }],
       stream: false
     });
@@ -143,7 +143,13 @@ async function handleChatbot(message) {
     await message.reply(reply);
   } catch (err) {
     console.error('Chatbot error:', err);
-    await message.reply('⚠️ Sorry, I encountered an error processing your request.');
+
+    // Improved error handling
+    if (err.statusCode === 404) {
+      await message.reply('⚠️ Chatbot model not found or unavailable. Please check OpenRouter settings.');
+    } else {
+      await message.reply('⚠️ Sorry, I encountered an error processing your request.');
+    }
   }
 }
 
