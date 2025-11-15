@@ -1,6 +1,6 @@
 require('dotenv').config(); // load .env
 const { Client, GatewayIntentBits, AuditLogEvent, ChannelType } = require('discord.js');
-const axios = require('axios'); // Use axios for HTTP requests
+// const axios = require('axios'); // No longer needed
 
 // Create client
 const client = new Client({
@@ -121,64 +121,58 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
-// Chatbot handler with improved payload and error handling
+// Chatbot handler with fetch implementation
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
 
   while (attempt < maxRetries) {
     try {
-      const response = await axios.post(
-        'https://openrouter.ai/api/v1/chat/completions',
-        {
-          model: 'moonshotai/kimi-k2:free', // Ensure this model is available in your OpenRouter account
-          messages: [{ role: 'user', content: message.content }]
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "HTTP-Referer": HTTP_REFERER,
+          "X-Title": X_TITLE,
+          "Content-Type": "application/json"
         },
-        {
-          headers: {
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': HTTP_REFERER,
-            'X-Title': X_TITLE
-          }
-        }
-      );
+        body: JSON.stringify({
+          model: "moonshotai/kimi-k2:free", // Ensure this model is available in your OpenRouter account
+          messages: [{ role: "user", content: message.content }]
+        })
+      });
 
-      const reply = response.data.choices[0].message.content;
-      await message.reply(reply);
-      return; // Exit the function if successful
-    } catch (err) {
-      console.error(`Chatbot error (attempt ${attempt + 1}):`, err);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`Chatbot error (attempt ${attempt + 1}):`, errorData);
 
-      if (err.response) {
-        // Log detailed error response
-        console.error('Response data:', err.response.data);
-        console.error('Response status:', err.response.status);
-        console.error('Response headers:', err.response.headers);
-
-        if (err.response.status === 400) {
-          await message.reply('⚠️ Bad request. Please check the chatbot configuration.');
-          return;
-        } else if (err.response.status === 429) {
+        if (response.status === 429) {
           // Rate limit error
           if (attempt < maxRetries - 1) {
             const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
             console.warn(`Rate limited. Retrying in ${waitTime / 1000} seconds...`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
           } else {
-            await message.reply('⚠️ The chatbot is currently rate-limited. Please try again later.');
+            await message.reply("⚠️ The chatbot is currently rate-limited. Please try again later.");
             return;
           }
+        } else if (response.status === 400) {
+          await message.reply("⚠️ Bad request. Please check the chatbot configuration.");
+          return;
         } else {
-          await message.reply('⚠️ An error occurred while processing your request.');
+          await message.reply("⚠️ An error occurred while processing your request.");
           return;
         }
-      } else {
-        // Handle other errors (e.g., network issues)
-        console.error('Unexpected error:', err);
-        await message.reply('⚠️ Sorry, I encountered an unexpected error.');
-        return;
       }
+
+      const data = await response.json();
+      const reply = data.choices[0].message.content;
+      await message.reply(reply);
+      return; // Exit the function if successful
+    } catch (err) {
+      console.error(`Unexpected error (attempt ${attempt + 1}):`, err);
+      await message.reply("⚠️ Sorry, I encountered an unexpected error.");
+      return;
     }
 
     attempt++;
