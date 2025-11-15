@@ -121,7 +121,22 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
-// Chatbot handler with fetch implementation
+// Helper: Send logs to the 'bot-logs' channel
+async function sendLogToChannel(guild, logContent) {
+  try {
+    if (!guild) return;
+    const logChannel = guild.channels.cache.find(ch => ch.name === 'bot-logs' && (ch.type === ChannelType.GuildText || ch.isTextBased?.()));
+    if (!logChannel) {
+      console.warn(`bot-logs channel not found in guild ${guild.id} (${guild.name})`);
+      return;
+    }
+    await logChannel.send(`\`\`\`json\n${JSON.stringify(logContent, null, 2)}\n\`\`\``);
+  } catch (err) {
+    console.error('Failed to send log to bot-logs channel:', err);
+  }
+}
+
+// Chatbot handler with logging to Discord
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
@@ -146,6 +161,13 @@ async function handleChatbot(message) {
         const errorData = await response.json();
         console.error(`Chatbot error (attempt ${attempt + 1}):`, errorData);
 
+        // Log error to the bot-logs channel
+        await sendLogToChannel(message.guild, {
+          error: errorData,
+          status: response.status,
+          statusText: response.statusText
+        });
+
         if (response.status === 429) {
           // Rate limit error
           if (attempt < maxRetries - 1) {
@@ -167,10 +189,21 @@ async function handleChatbot(message) {
 
       const data = await response.json();
       const reply = data.choices[0].message.content;
+
+      // Log successful response to the bot-logs channel
+      await sendLogToChannel(message.guild, {
+        request: { content: message.content },
+        response: data
+      });
+
       await message.reply(reply);
       return; // Exit the function if successful
     } catch (err) {
       console.error(`Unexpected error (attempt ${attempt + 1}):`, err);
+
+      // Log unexpected error to the bot-logs channel
+      await sendLogToChannel(message.guild, { error: err.message });
+
       await message.reply("⚠️ Sorry, I encountered an unexpected error.");
       return;
     }
