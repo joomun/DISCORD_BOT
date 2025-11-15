@@ -1,5 +1,5 @@
 require('dotenv').config(); // load .env
-const { Client, GatewayIntentBits, AuditLogEvent, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, AuditLogEvent, ChannelType, EmbedBuilder } = require('discord.js');
 // const axios = require('axios'); // No longer needed
 
 // Create client
@@ -129,7 +129,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
-// Helper: Send logs to the 'bot-logs' channel
+// Helper: Send logs to the 'bot-logs' channel with embed
 async function sendLogToChannel(guild, logContent) {
   try {
     if (!guild) return;
@@ -138,13 +138,23 @@ async function sendLogToChannel(guild, logContent) {
       console.warn(`bot-logs channel not found in guild ${guild.id} (${guild.name})`);
       return;
     }
-    await logChannel.send(`\`\`\`json\n${JSON.stringify(logContent, null, 2)}\n\`\`\``);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xffcc00) // Yellow color
+      .setTitle('API Log')
+      .setDescription('Details of the API interaction')
+      .addFields(
+        { name: 'Log Content', value: `\`\`\`json\n${JSON.stringify(logContent, null, 2)}\n\`\`\`` }
+      )
+      .setTimestamp();
+
+    await logChannel.send({ embeds: [embed] });
   } catch (err) {
     console.error('Failed to send log to bot-logs channel:', err);
   }
 }
 
-// Chatbot handler with detailed rate limit error handling
+// Chatbot handler with embed responses
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
@@ -154,7 +164,19 @@ async function handleChatbot(message) {
   const model = MODEL_SHORTCUTS[shortcut];
 
   if (!model) {
-    await message.reply("⚠️ Invalid model shortcut. Use one of the following:\n- `a:` for openai/gpt-oss-20b:free\n- `b:` for moonshotai/kimi-k2:free\n- `c:` for deepseek/deepseek-r1-0528-qwen3-8b:free\n- `d:` for google/gemma-3-4b-it:free");
+    const embed = new EmbedBuilder()
+      .setColor(0xff0000) // Red color
+      .setTitle('Invalid Model Shortcut')
+      .setDescription('Use one of the following shortcuts:')
+      .addFields(
+        { name: 'a:', value: 'openai/gpt-oss-20b:free', inline: true },
+        { name: 'b:', value: 'moonshotai/kimi-k2:free', inline: true },
+        { name: 'c:', value: 'deepseek/deepseek-r1-0528-qwen3-8b:free', inline: true },
+        { name: 'd:', value: 'google/gemma-3-4b-it:free', inline: true }
+      )
+      .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
     return;
   }
 
@@ -195,7 +217,17 @@ async function handleChatbot(message) {
           const rateLimitReset = errorData.error?.error?.metadata?.headers?.["X-RateLimit-Reset"];
           const resetTime = rateLimitReset ? new Date(parseInt(rateLimitReset)).toLocaleString() : "unknown";
 
-          await message.reply(`⚠️ ${rateLimitMessage}\n\n- **Remaining Requests**: ${rateLimitRemaining}\n- **Reset Time**: ${resetTime}`);
+          const embed = new EmbedBuilder()
+            .setColor(0xffcc00) // Yellow color
+            .setTitle('Rate Limit Exceeded')
+            .setDescription(rateLimitMessage)
+            .addFields(
+              { name: 'Remaining Requests', value: rateLimitRemaining, inline: true },
+              { name: 'Reset Time', value: resetTime, inline: true }
+            )
+            .setTimestamp();
+
+          await message.reply({ embeds: [embed] });
           return;
         } else if (response.status === 400) {
           await message.reply("⚠️ Bad request. Please check the chatbot configuration.");
@@ -215,7 +247,13 @@ async function handleChatbot(message) {
         response: data
       });
 
-      await message.reply(reply);
+      const embed = new EmbedBuilder()
+        .setColor(0x00ff00) // Green color
+        .setTitle('Chatbot Response')
+        .setDescription(reply)
+        .setTimestamp();
+
+      await message.reply({ embeds: [embed] });
       return; // Exit the function if successful
     } catch (err) {
       console.error(`Unexpected error (attempt ${attempt + 1}):`, err);
@@ -223,7 +261,13 @@ async function handleChatbot(message) {
       // Log unexpected error to the bot-logs channel
       await sendLogToChannel(message.guild, { error: err.message });
 
-      await message.reply("⚠️ Sorry, I encountered an unexpected error.");
+      const embed = new EmbedBuilder()
+        .setColor(0xff0000) // Red color
+        .setTitle('Unexpected Error')
+        .setDescription('Sorry, I encountered an unexpected error.')
+        .setTimestamp();
+
+      await message.reply({ embeds: [embed] });
       return;
     }
 
