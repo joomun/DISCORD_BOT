@@ -1,6 +1,6 @@
 require('dotenv').config(); // load .env
 const { Client, GatewayIntentBits, AuditLogEvent, ChannelType } = require('discord.js');
-const { OpenRouter } = require('@openrouter/sdk'); // Updated: use OpenRouter SDK
+const axios = require('axios'); // Use axios for HTTP requests
 
 // Create client
 const client = new Client({
@@ -17,15 +17,6 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const CHATBOT_CHANNEL_NAME = process.env.CHATBOT_CHANNEL || 'bot-chat';
 const HTTP_REFERER = process.env.HTTP_REFERER || 'https://your-site.com'; // Optional
 const X_TITLE = process.env.X_TITLE || 'Discord Bot'; // Optional
-
-// Initialize OpenRouter client
-const openRouter = new OpenRouter({
-  apiKey: OPENROUTER_API_KEY,
-  defaultHeaders: {
-    'HTTP-Referer': HTTP_REFERER,
-    'X-Title': X_TITLE
-  }
-});
 
 // helper: find the 'bot-warning' text channel in a guild and send a short message
 async function notifyBotWarning(guild, content) {
@@ -130,26 +121,36 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
-// Chatbot handler with retry logic
+// Chatbot handler with direct HTTP request
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
 
   while (attempt < maxRetries) {
     try {
-      const completion = await openRouter.chat.send({
-        model: 'deepseek/deepseek-r1:free', // Updated: Use a supported model
-        messages: [{ role: 'user', content: message.content }],
-        stream: false
-      });
+      const response = await axios.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          model: 'moonshotai/kimi-k2:free', // Updated: Use a supported model
+          messages: [{ role: 'user', content: message.content }]
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': HTTP_REFERER,
+            'X-Title': X_TITLE
+          }
+        }
+      );
 
-      const reply = completion.choices[0].message.content;
+      const reply = response.data.choices[0].message.content;
       await message.reply(reply);
       return; // Exit the function if successful
     } catch (err) {
       console.error(`Chatbot error (attempt ${attempt + 1}):`, err);
 
-      if (err.statusCode === 429) {
+      if (err.response?.status === 429) {
         // Rate limit error
         if (attempt < maxRetries - 1) {
           const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
