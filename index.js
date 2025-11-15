@@ -351,14 +351,18 @@ async function generateMermaidChart(message, mermaidCode) {
     fs.writeFileSync(inputFilePath, mermaidCode);
 
     // Generate the chart using mermaid.cli
-    exec(`mmdc -i ${inputFilePath} -o ${outputFilePath}`, async (err) => {
+    exec(`mmdc -i ${inputFilePath} -o ${outputFilePath}`, async (err, stdout, stderr) => {
       if (err) {
         console.error('Failed to generate Mermaid chart:', err);
+        console.error('Mermaid CLI Output:', stderr);
 
         const embed = new EmbedBuilder()
           .setColor(0xff0000) // Red color
           .setTitle('Mermaid Chart Error')
           .setDescription('Failed to generate the Mermaid chart. Please ensure your code is valid.')
+          .addFields(
+            { name: 'Error Details', value: `\`\`\`${stderr || 'Unknown error'}\`\`\`` }
+          )
           .setTimestamp();
 
         await message.reply({ embeds: [embed] });
