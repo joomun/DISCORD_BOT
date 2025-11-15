@@ -15,6 +15,6 @@
     "axios": "^1.13.2",
     "discord.js": "^14.24.0",
     "dotenv": "^17.2.3",
-    "puppeteer": "^24.30.0"
+    "puppeteer": "^23.11.1"
   }
 }
