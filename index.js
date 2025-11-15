@@ -275,6 +275,64 @@ async function handleChatbot(message) {
   }
 }
 
+// Helper: Fetch and display rate limit information
+async function fetchRateLimitInfo(message) {
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/key', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Failed to fetch rate limit info:', errorData);
+
+      const embed = new EmbedBuilder()
+        .setColor(0xff0000) // Red color
+        .setTitle('Rate Limit Info Error')
+        .setDescription('Failed to fetch rate limit information.')
+        .addFields(
+          { name: 'Status', value: `${response.status} ${response.statusText}`, inline: true },
+          { name: 'Error', value: errorData.message || 'Unknown error', inline: true }
+        )
+        .setTimestamp();
+
+      await message.reply({ embeds: [embed] });
+      return;
+    }
+
+    const keyInfo = await response.json();
+    const rateLimit = keyInfo.rate_limit || {};
+    const remaining = rateLimit.remaining || 'Unknown';
+    const limit = rateLimit.limit || 'Unknown';
+    const reset = rateLimit.reset ? new Date(rateLimit.reset * 1000).toLocaleString() : 'Unknown';
+
+    const embed = new EmbedBuilder()
+      .setColor(0x00ccff) // Blue color
+      .setTitle('Rate Limit Information')
+      .addFields(
+        { name: 'Remaining Requests', value: `${remaining}`, inline: true },
+        { name: 'Request Limit', value: `${limit}`, inline: true },
+        { name: 'Reset Time', value: `${reset}`, inline: true }
+      )
+      .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+  } catch (err) {
+    console.error('Unexpected error while fetching rate limit info:', err);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff0000) // Red color
+      .setTitle('Unexpected Error')
+      .setDescription('An unexpected error occurred while fetching rate limit information.')
+      .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+  }
+}
+
 // Simple command handler preserved
 client.on('messageCreate', async (message) => {
   if (message.content === '!ping') {
@@ -282,7 +340,6 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // help command: explain bot capabilities (terminal-like theme)
   if (message.content === '!help') {
     const help = [
       '```',
@@ -290,8 +347,9 @@ client.on('messageCreate', async (message) => {
       '│  Discord Audit Notifier                                                  │', 
       '├──────────────────────────────────────────────────────────────────────────│',
       '│  Commands:                                                               │',                       
-      '│    !ping   — test the bot                                                │',
-      '│    !help   — show this message                                           │',
+      '│    !ping         — test the bot                                          │',
+      '│    !help         — show this message                                     │',
+      '│    !rate-limit   — show OpenRouter API rate limit information            │',
       '│ ─────────────────────────────────────────────────────────────────────────│',
       '│  What I do:                                                              │',
       '│    Notify the channel named "bot-warning" when important                 │',
@@ -314,6 +372,11 @@ client.on('messageCreate', async (message) => {
     ].join('\n');
 
     message.reply(help);
+    return;
+  }
+
+  if (message.content === '!rate-limit') {
+    await fetchRateLimitInfo(message);
     return;
   }
 
