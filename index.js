@@ -1,6 +1,8 @@
 require('dotenv').config(); // load .env
-const { Client, GatewayIntentBits, AuditLogEvent, ChannelType, EmbedBuilder } = require('discord.js');
-// const axios = require('axios'); // No longer needed
+const { Client, GatewayIntentBits, AuditLogEvent, ChannelType, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { exec } = require('child_process'); // Import exec to run mermaid.cli commands
+const fs = require('fs'); // Import fs for file handling
+const path = require('path'); // Import path for file paths
 
 // Create client
 const client = new Client({
@@ -333,6 +335,57 @@ async function fetchRateLimitInfo(message) {
   }
 }
 
+// Helper: Generate Mermaid chart and send it as an image
+async function generateMermaidChart(message, mermaidCode) {
+  try {
+    // Define file paths
+    const inputFilePath = path.join(__dirname, 'temp', `chart-${Date.now()}.mmd`);
+    const outputFilePath = path.join(__dirname, 'temp', `chart-${Date.now()}.png`);
+
+    // Ensure the temp directory exists
+    if (!fs.existsSync(path.join(__dirname, 'temp'))) {
+      fs.mkdirSync(path.join(__dirname, 'temp'));
+    }
+
+    // Write the Mermaid code to a temporary file
+    fs.writeFileSync(inputFilePath, mermaidCode);
+
+    // Generate the chart using mermaid.cli
+    exec(`mmdc -i ${inputFilePath} -o ${outputFilePath}`, async (err) => {
+      if (err) {
+        console.error('Failed to generate Mermaid chart:', err);
+
+        const embed = new EmbedBuilder()
+          .setColor(0xff0000) // Red color
+          .setTitle('Mermaid Chart Error')
+          .setDescription('Failed to generate the Mermaid chart. Please ensure your code is valid.')
+          .setTimestamp();
+
+        await message.reply({ embeds: [embed] });
+        return;
+      }
+
+      // Send the generated chart as an image attachment
+      const attachment = new AttachmentBuilder(outputFilePath);
+      await message.reply({ files: [attachment] });
+
+      // Clean up temporary files
+      fs.unlinkSync(inputFilePath);
+      fs.unlinkSync(outputFilePath);
+    });
+  } catch (err) {
+    console.error('Unexpected error while generating Mermaid chart:', err);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff0000) // Red color
+      .setTitle('Unexpected Error')
+      .setDescription('An unexpected error occurred while generating the Mermaid chart.')
+      .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+  }
+}
+
 // Simple command handler preserved
 client.on('messageCreate', async (message) => {
   if (message.content === '!ping') {
@@ -346,7 +399,7 @@ client.on('messageCreate', async (message) => {
       .setTitle('Discord Audit Notifier - Help')
       .setDescription('Here are the available commands and features:')
       .addFields(
-        { name: 'Commands', value: '`!ping` - Test the bot\n`!help` - Show this help message\n`!rate-limit` - Show OpenRouter API rate limit information' },
+        { name: 'Commands', value: '`!ping` - Test the bot\n`!help` - Show this help message\n`!rate-limit` - Show OpenRouter API rate limit information\n`!mermaid` - Generate a Mermaid chart from code' },
         { name: 'Chatbot Shortcuts', value: [
             '`a: <message>` - openai/gpt-oss-20b:free',
             '`b: <message>` - moonshotai/kimi-k2:free',
@@ -356,19 +409,38 @@ client.on('messageCreate', async (message) => {
         { name: 'Features', value: [
             '• Notifies the "bot-warning" channel for important audit-log events (roles, channels, webhooks, bans, guild updates).',
             '• Logs API interactions in the "bot-logs" channel.',
-            '• Supports multiple chatbot models via shortcuts.'
+            '• Supports multiple chatbot models via shortcuts.',
+            '• Generates Mermaid charts from `.md` code.'
           ].join('\n') },
         { name: 'Notes', value: [
             '• Bot needs "View Audit Log" and "Send Messages" permissions.',
             '• Ensure a text channel named "bot-warning" exists.',
             '• Ensure a text channel named "bot-logs" exists for logging.',
-            '• Set `HTTP_REFERER` and `X_TITLE` in `.env` for ranking (optional).'
+            '• Set `HTTP_REFERER` and `X_TITLE` in `.env` for ranking (optional).',
+            '• Install `mermaid.cli` globally for Mermaid chart generation.'
           ].join('\n') }
       )
       .setFooter({ text: 'Discord Audit Notifier', iconURL: client.user.displayAvatarURL() })
       .setTimestamp();
 
     await message.reply({ embeds: [embed] });
+    return;
+  }
+
+  if (message.content.startsWith('!mermaid')) {
+    const mermaidCode = message.content.slice(8).trim(); // Extract the Mermaid code
+    if (!mermaidCode) {
+      const embed = new EmbedBuilder()
+        .setColor(0xffcc00) // Yellow color
+        .setTitle('Mermaid Chart Error')
+        .setDescription('Please provide valid Mermaid code after the `!mermaid` command.')
+        .setTimestamp();
+
+      await message.reply({ embeds: [embed] });
+      return;
+    }
+
+    await generateMermaidChart(message, mermaidCode);
     return;
   }
 
