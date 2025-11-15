@@ -121,7 +121,7 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
-// Chatbot handler with direct HTTP request
+// Chatbot handler with improved payload and error handling
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
@@ -131,7 +131,7 @@ async function handleChatbot(message) {
       const response = await axios.post(
         'https://openrouter.ai/api/v1/chat/completions',
         {
-          model: 'moonshotai/kimi-k2:free', // Updated: Use a supported model
+          model: 'moonshotai/kimi-k2:free', // Ensure this model is available in your OpenRouter account
           messages: [{ role: 'user', content: message.content }]
         },
         {
@@ -150,19 +150,33 @@ async function handleChatbot(message) {
     } catch (err) {
       console.error(`Chatbot error (attempt ${attempt + 1}):`, err);
 
-      if (err.response?.status === 429) {
-        // Rate limit error
-        if (attempt < maxRetries - 1) {
-          const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
-          console.warn(`Rate limited. Retrying in ${waitTime / 1000} seconds...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+      if (err.response) {
+        // Log detailed error response
+        console.error('Response data:', err.response.data);
+        console.error('Response status:', err.response.status);
+        console.error('Response headers:', err.response.headers);
+
+        if (err.response.status === 400) {
+          await message.reply('⚠️ Bad request. Please check the chatbot configuration.');
+          return;
+        } else if (err.response.status === 429) {
+          // Rate limit error
+          if (attempt < maxRetries - 1) {
+            const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
+            console.warn(`Rate limited. Retrying in ${waitTime / 1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          } else {
+            await message.reply('⚠️ The chatbot is currently rate-limited. Please try again later.');
+            return;
+          }
         } else {
-          await message.reply('⚠️ The chatbot is currently rate-limited. Please try again later.');
+          await message.reply('⚠️ An error occurred while processing your request.');
           return;
         }
       } else {
-        // Other errors
-        await message.reply('⚠️ Sorry, I encountered an error processing your request.');
+        // Handle other errors (e.g., network issues)
+        console.error('Unexpected error:', err);
+        await message.reply('⚠️ Sorry, I encountered an unexpected error.');
         return;
       }
     }
