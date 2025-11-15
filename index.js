@@ -130,26 +130,43 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
-// Chatbot handler
+// Chatbot handler with retry logic
 async function handleChatbot(message) {
-  try {
-    const completion = await openRouter.chat.send({
-      model: 'deepseek/deepseek-r1:free', // Updated: Use a supported model
-      messages: [{ role: 'user', content: message.content }],
-      stream: false
-    });
+  const maxRetries = 3; // Maximum number of retries
+  let attempt = 0;
 
-    const reply = completion.choices[0].message.content;
-    await message.reply(reply);
-  } catch (err) {
-    console.error('Chatbot error:', err);
+  while (attempt < maxRetries) {
+    try {
+      const completion = await openRouter.chat.send({
+        model: 'deepseek/deepseek-r1:free', // Updated: Use a supported model
+        messages: [{ role: 'user', content: message.content }],
+        stream: false
+      });
 
-    // Improved error handling
-    if (err.statusCode === 404) {
-      await message.reply('⚠️ Chatbot model not found or unavailable. Please check OpenRouter settings.');
-    } else {
-      await message.reply('⚠️ Sorry, I encountered an error processing your request.');
+      const reply = completion.choices[0].message.content;
+      await message.reply(reply);
+      return; // Exit the function if successful
+    } catch (err) {
+      console.error(`Chatbot error (attempt ${attempt + 1}):`, err);
+
+      if (err.statusCode === 429) {
+        // Rate limit error
+        if (attempt < maxRetries - 1) {
+          const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
+          console.warn(`Rate limited. Retrying in ${waitTime / 1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+          await message.reply('⚠️ The chatbot is currently rate-limited. Please try again later.');
+          return;
+        }
+      } else {
+        // Other errors
+        await message.reply('⚠️ Sorry, I encountered an error processing your request.');
+        return;
+      }
     }
+
+    attempt++;
   }
 }
 
