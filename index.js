@@ -18,6 +18,14 @@ const CHATBOT_CHANNEL_NAME = process.env.CHATBOT_CHANNEL || 'bot-chat';
 const HTTP_REFERER = process.env.HTTP_REFERER || 'https://your-site.com'; // Optional
 const X_TITLE = process.env.X_TITLE || 'Discord Bot'; // Optional
 
+// Model shortcuts mapping
+const MODEL_SHORTCUTS = {
+  a: "openai/gpt-oss-20b:free",
+  b: "moonshotai/kimi-k2:free",
+  c: "deepseek/deepseek-r1-0528-qwen3-8b:free",
+  d: "google/gemma-3-4b-it:free"
+};
+
 // helper: find the 'bot-warning' text channel in a guild and send a short message
 async function notifyBotWarning(guild, content) {
   try {
@@ -136,10 +144,22 @@ async function sendLogToChannel(guild, logContent) {
   }
 }
 
-// Chatbot handler with logging to Discord
+// Chatbot handler with model shortcuts
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
+
+  // Extract model shortcut from the message
+  const shortcut = message.content.split(":")[0].trim().toLowerCase();
+  const model = MODEL_SHORTCUTS[shortcut];
+
+  if (!model) {
+    await message.reply("⚠️ Invalid model shortcut. Use one of the following:\n- `a:` for openai/gpt-oss-20b:free\n- `b:` for moonshotai/kimi-k2:free\n- `c:` for deepseek/deepseek-r1-0528-qwen3-8b:free\n- `d:` for google/gemma-3-4b-it:free");
+    return;
+  }
+
+  // Remove the shortcut from the message content
+  const userMessage = message.content.slice(shortcut.length + 1).trim();
 
   while (attempt < maxRetries) {
     try {
@@ -152,8 +172,8 @@ async function handleChatbot(message) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "moonshotai/kimi-k2:free", // Ensure this model is available in your OpenRouter account
-          messages: [{ role: "user", content: message.content }]
+          model: model,
+          messages: [{ role: "user", content: userMessage }]
         })
       });
 
@@ -192,7 +212,7 @@ async function handleChatbot(message) {
 
       // Log successful response to the bot-logs channel
       await sendLogToChannel(message.guild, {
-        request: { content: message.content },
+        request: { content: userMessage, model: model },
         response: data
       });
 
@@ -235,11 +255,17 @@ client.on('messageCreate', async (message) => {
       '│    audit-log events occur (roles, channels, webhooks, bans,              │',
       '│    guild updates).                                                       │',
       '│                                                                          │',
+      '│  Chatbot Shortcuts:                                                      │',
+      '│    a: <message> — openai/gpt-oss-20b:free                                │',
+      '│    b: <message> — moonshotai/kimi-k2:free                                │',
+      '│    c: <message> — deepseek/deepseek-r1-0528-qwen3-8b:free                │',
+      '│    d: <message> — google/gemma-3-4b-it:free                              │',
+      '│                                                                          │',
       '│  Notes:                                                                  │',
       '│    • Bot needs "View Audit Log" and "Send Messages" permissions.         │',
       '│    • Ensure a text channel named "bot-warning" exists.                   │',
-      '│    • Chatbot uses OpenRouter (GPT-4) for responses.                     │',
-      '│    • Set HTTP_REFERER and X_TITLE in .env for ranking (optional).       │',
+      '│    • Ensure a text channel named "bot-logs" exists for logging.          │',
+      '│    • Set HTTP_REFERER and X_TITLE in .env for ranking (optional).        │',
       '└──────────────────────────────────────────────────────────────────────────',
       '```'
     ].join('\n');
