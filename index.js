@@ -335,9 +335,31 @@ async function fetchRateLimitInfo(message) {
   }
 }
 
+// Helper: Check if mmdc is installed
+function isMermaidCliAvailable() {
+  return new Promise((resolve) => {
+    exec('mmdc --version', (err) => {
+      resolve(!err); // Resolve true if no error, false otherwise
+    });
+  });
+}
+
 // Helper: Generate Mermaid chart and send it as an image
 async function generateMermaidChart(message, mermaidCode) {
   try {
+    // Check if mmdc is installed
+    const isAvailable = await isMermaidCliAvailable();
+    if (!isAvailable) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff0000) // Red color
+        .setTitle('Mermaid CLI Not Found')
+        .setDescription('The `mermaid.cli` tool is not installed or not available in the system PATH. Please install it globally using:\n`npm install -g @mermaid-js/mermaid-cli`')
+        .setTimestamp();
+
+      await message.reply({ embeds: [embed] });
+      return;
+    }
+
     // Define file paths
     const inputFilePath = path.join(__dirname, 'temp', `chart-${Date.now()}.mmd`);
     const outputFilePath = path.join(__dirname, 'temp', `chart-${Date.now()}.png`);
