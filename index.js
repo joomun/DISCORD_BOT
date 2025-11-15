@@ -386,6 +386,33 @@ async function generateMermaidChart(message, mermaidCode) {
   }
 }
 
+// Helper: Read Mermaid code from an uploaded .md file
+async function readMermaidFromFile(attachment) {
+  const filePath = path.join(__dirname, 'temp', `uploaded-${Date.now()}.md`);
+
+  // Ensure the temp directory exists
+  if (!fs.existsSync(path.join(__dirname, 'temp'))) {
+    fs.mkdirSync(path.join(__dirname, 'temp'));
+  }
+
+  // Download the file
+  const response = await fetch(attachment.url);
+  const fileStream = fs.createWriteStream(filePath);
+  await new Promise((resolve, reject) => {
+    response.body.pipe(fileStream);
+    response.body.on('error', reject);
+    fileStream.on('finish', resolve);
+  });
+
+  // Read the file contents
+  const mermaidCode = fs.readFileSync(filePath, 'utf-8');
+
+  // Clean up the temporary file
+  fs.unlinkSync(filePath);
+
+  return mermaidCode;
+}
+
 // Simple command handler preserved
 client.on('messageCreate', async (message) => {
   if (message.content === '!ping') {
@@ -428,12 +455,43 @@ client.on('messageCreate', async (message) => {
   }
 
   if (message.content.startsWith('!mermaid')) {
-    const mermaidCode = message.content.slice(8).trim(); // Extract the Mermaid code
+    let mermaidCode = message.content.slice(8).trim(); // Extract the Mermaid code
+
+    // Check if an .md file is attached
+    if (message.attachments.size > 0) {
+      const attachment = message.attachments.first();
+      if (attachment.name.endsWith('.md')) {
+        try {
+          mermaidCode = await readMermaidFromFile(attachment);
+        } catch (err) {
+          console.error('Failed to read Mermaid code from file:', err);
+
+          const embed = new EmbedBuilder()
+            .setColor(0xff0000) // Red color
+            .setTitle('Mermaid Chart Error')
+            .setDescription('Failed to read the uploaded `.md` file. Please ensure it contains valid Mermaid code.')
+            .setTimestamp();
+
+          await message.reply({ embeds: [embed] });
+          return;
+        }
+      } else {
+        const embed = new EmbedBuilder()
+          .setColor(0xffcc00) // Yellow color
+          .setTitle('Invalid File Type')
+          .setDescription('Please upload a valid `.md` file containing Mermaid code.')
+          .setTimestamp();
+
+        await message.reply({ embeds: [embed] });
+        return;
+      }
+    }
+
     if (!mermaidCode) {
       const embed = new EmbedBuilder()
         .setColor(0xffcc00) // Yellow color
         .setTitle('Mermaid Chart Error')
-        .setDescription('Please provide valid Mermaid code after the `!mermaid` command.')
+        .setDescription('Please provide valid Mermaid code after the `!mermaid` command or upload a `.md` file.')
         .setTimestamp();
 
       await message.reply({ embeds: [embed] });
