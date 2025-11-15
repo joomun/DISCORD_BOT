@@ -1,6 +1,6 @@
 require('dotenv').config(); // load .env
 const { Client, GatewayIntentBits, AuditLogEvent, ChannelType } = require('discord.js');
-const axios = require('axios'); // New: for OpenRouter API
+const { OpenRouter } = require('@openrouter/sdk'); // Updated: use OpenRouter SDK
 
 // Create client
 const client = new Client({
@@ -15,6 +15,17 @@ const client = new Client({
 const TOKEN = process.env.DISCORD_TOKEN;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const CHATBOT_CHANNEL_NAME = process.env.CHATBOT_CHANNEL || 'bot-chat';
+const HTTP_REFERER = process.env.HTTP_REFERER || 'https://your-site.com'; // Optional
+const X_TITLE = process.env.X_TITLE || 'Discord Bot'; // Optional
+
+// Initialize OpenRouter client
+const openRouter = new OpenRouter({
+  apiKey: OPENROUTER_API_KEY,
+  defaultHeaders: {
+    'HTTP-Referer': HTTP_REFERER,
+    'X-Title': X_TITLE
+  }
+});
 
 // helper: find the 'bot-warning' text channel in a guild and send a short message
 async function notifyBotWarning(guild, content) {
@@ -122,17 +133,13 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
 // Chatbot handler
 async function handleChatbot(message) {
   try {
-    const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-      model: 'deepseek/deepseek-chat-v3.1:free', // You can change this to any supported model
-      messages: [{ role: 'user', content: message.content }]
-    }, {
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
+    const completion = await openRouter.chat.send({
+      model: 'deepseek/deepseek-chat-v3.1:free', // Updated: using official OpenRouter SDK
+      messages: [{ role: 'user', content: message.content }],
+      stream: false
     });
 
-    const reply = response.data.choices[0].message.content;
+    const reply = completion.choices[0].message.content;
     await message.reply(reply);
   } catch (err) {
     console.error('Chatbot error:', err);
@@ -166,6 +173,8 @@ client.on('messageCreate', async (message) => {
       '│  Notes:                                                                  │',
       '│    • Bot needs "View Audit Log" and "Send Messages" permissions.         │',
       '│    • Ensure a text channel named "bot-warning" exists.                   │',
+      '│    • Chatbot uses OpenRouter (GPT-4) for responses.                     │',
+      '│    • Set HTTP_REFERER and X_TITLE in .env for ranking (optional).       │',
       '└──────────────────────────────────────────────────────────────────────────',
       '```'
     ].join('\n');
