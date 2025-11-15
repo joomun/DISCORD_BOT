@@ -1,6 +1,6 @@
 require('dotenv').config(); // load .env
-
 const { Client, GatewayIntentBits, AuditLogEvent, ChannelType } = require('discord.js');
+const axios = require('axios'); // New: for OpenRouter API
 
 // Create client
 const client = new Client({
@@ -11,8 +11,10 @@ const client = new Client({
   ]
 });
 
-// Read token from environment variable
+// Read token and chatbot config from environment variables
 const TOKEN = process.env.DISCORD_TOKEN;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const CHATBOT_CHANNEL_NAME = process.env.CHATBOT_CHANNEL || 'bot-chat';
 
 // helper: find the 'bot-warning' text channel in a guild and send a short message
 async function notifyBotWarning(guild, content) {
@@ -117,10 +119,32 @@ client.on('guildUpdate', async (oldGuild, newGuild) => {
   await notifyBotWarning(newGuild, `:warning: Guild updated — by **${executor}** | ${reason}`);
 });
 
+// Chatbot handler
+async function handleChatbot(message) {
+  try {
+    const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+      model: 'deepseek/deepseek-chat-v3.1:free', // You can change this to any supported model
+      messages: [{ role: 'user', content: message.content }]
+    }, {
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const reply = response.data.choices[0].message.content;
+    await message.reply(reply);
+  } catch (err) {
+    console.error('Chatbot error:', err);
+    await message.reply('⚠️ Sorry, I encountered an error processing your request.');
+  }
+}
+
 // Simple command handler preserved
-client.on('messageCreate', (message) => {
+client.on('messageCreate', async (message) => {
   if (message.content === '!ping') {
     message.reply('🏓 Pong!');
+    return;
   }
 
   // help command: explain bot capabilities (terminal-like theme)
@@ -147,7 +171,14 @@ client.on('messageCreate', (message) => {
     ].join('\n');
 
     message.reply(help);
+    return;
   }
+
+  // Ignore bot messages and non-command messages in the chatbot channel
+  if (message.author.bot || message.channel.name !== CHATBOT_CHANNEL_NAME) return;
+
+  // Handle chatbot interaction
+  await handleChatbot(message);
 });
 
 // Login (single call)
