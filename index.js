@@ -144,7 +144,7 @@ async function sendLogToChannel(guild, logContent) {
   }
 }
 
-// Chatbot handler with model shortcuts
+// Chatbot handler with detailed rate limit error handling
 async function handleChatbot(message) {
   const maxRetries = 3; // Maximum number of retries
   let attempt = 0;
@@ -189,15 +189,14 @@ async function handleChatbot(message) {
         });
 
         if (response.status === 429) {
-          // Rate limit error
-          if (attempt < maxRetries - 1) {
-            const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
-            console.warn(`Rate limited. Retrying in ${waitTime / 1000} seconds...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-          } else {
-            await message.reply("⚠️ The chatbot is currently rate-limited. Please try again later.");
-            return;
-          }
+          // Extract rate limit details
+          const rateLimitMessage = errorData.error?.error?.message || "Rate limit exceeded.";
+          const rateLimitRemaining = errorData.error?.error?.metadata?.headers?.["X-RateLimit-Remaining"] || "0";
+          const rateLimitReset = errorData.error?.error?.metadata?.headers?.["X-RateLimit-Reset"];
+          const resetTime = rateLimitReset ? new Date(parseInt(rateLimitReset)).toLocaleString() : "unknown";
+
+          await message.reply(`⚠️ ${rateLimitMessage}\n\n- **Remaining Requests**: ${rateLimitRemaining}\n- **Reset Time**: ${resetTime}`);
+          return;
         } else if (response.status === 400) {
           await message.reply("⚠️ Bad request. Please check the chatbot configuration.");
           return;
